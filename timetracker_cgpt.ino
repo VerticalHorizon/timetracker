@@ -418,7 +418,7 @@ void setup() {
   display.println("v2.2");
   display.display();
   beep(1200, 40); delay(60); beep(1600, 50);
-  delay(2000);
+  delay(200);
 }
 
 void loop() {
