@@ -1,18 +1,16 @@
-// ESP32-C3 Task Timer: multi-counter time tracker + 3 countdown timers on SH1106 OLED
+// ESP32-C3 Task Timer: multi-counter time tracker + 2 countdown timers on SSD1306 OLED
 // One active tracker at a time; fast switching between tasks.
-// Three countdown timers: default 5 min, 30 min, 1.5 hours. Cyclic (auto-restart).
+// Two countdown timers: default 5 minutes and 1.5 hours.
 //
 // ──────────────────────────────────────────────────────────────────────────────
 // Hardware (adjust pins if needed):
-//  OLED SH1106 128x64 I2C (1.3"): SDA=GPIO6, SCL=GPIO7, address 0x3C
-//  Питание экрана: 3.3V → VDD,  GND → GND
-//  Порядок пинов на плате слева направо: VDD  GND  SCK  SDA
+//  OLED SSD1306 128x32 I2C: SDA=GPIO6, SCL=GPIO7, address 0x3C
 //  Buttons (to GND, using internal pull-up): OK=GPIO2, NEXT=GPIO3, BACK=GPIO4
-//  Buzzer passive (без встроенного генератора): GPIO5
+//  Buzzer (prefer passive): GPIO5 (used with tone())
 //
 // Required Libraries (Arduino IDE → Library Manager):
 //  - Adafruit GFX
-//  - Adafruit SH110X   ← вместо SSD1306!
+//  - Adafruit SSD1306
 //  - Preferences (included in ESP32 core)
 // Board: ESP32C3 Dev Module (Arduino core for ESP32 v2.0+)
 //
@@ -40,7 +38,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
+#include <Adafruit_SSD1306.h>
 #include <Preferences.h>
 
 // ── Pinout (edit to match your board) ─────────────────────────────────────────────────
@@ -52,16 +50,14 @@ constexpr uint8_t PIN_BTN_BACK = 4;
 constexpr uint8_t PIN_BUZZER   = 5;  // passive buzzer preferred
 
 // ── Display ─────────────────────────────────────────────────--────────────────
-constexpr int OLED_W       = 128;
-constexpr int OLED_H       = 64;   // 1.3" OLED 128x64  ← меняй сюда если другой экран
-constexpr int VISIBLE_ROWS = 4;    // сколько строк влезает на экран
-constexpr int ROW_H        = OLED_H / VISIBLE_ROWS; // высота одной строки в пикселях (16)
-Adafruit_SH1106G display(OLED_W, OLED_H, &Wire, -1);
+constexpr int OLED_W = 128;
+constexpr int OLED_H = 32;   // 0.91" OLED 128x32
+Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
 
 // ── Config ──────────────────────────────────────────────-────────────────────
 constexpr uint8_t  MAX_TRACKERS   = 5;
 constexpr uint8_t  MAX_COUNTDOWNS = 3;
-constexpr uint32_t AUTOSAVE_MS    = 60000;
+constexpr uint32_t AUTOSAVE_MS    = 10000;
 constexpr uint32_t LONG_MS        = 1000;  // long press = ~1 сек
 constexpr uint32_t TAB_SWITCH_MS  = 800;   // holding down two buttons to change tabs
 
@@ -115,11 +111,7 @@ String fmtHMS(uint32_t s) {
 }
 
 void beep(uint16_t freq, uint16_t ms) {
-  ledcAttach(PIN_BUZZER, freq, 10);
-  ledcWrite(PIN_BUZZER, 512);
-  delay(ms);
-  ledcWrite(PIN_BUZZER, 0);
-  ledcDetach(PIN_BUZZER);
+  tone(PIN_BUZZER, freq, ms);
 }
 
 // ── Persistance, NVS ─────────────────────────────────────────────────────────
@@ -293,15 +285,16 @@ void adjustCountdown(int deltaSec) {
 // rowIndex: 0 or 1, label: “T1”/“C1”, active: whether this is active
 // seconds: time in seconds (for display)
 void drawRow(int rowIndex, const String &label, bool selected, bool active, uint32_t seconds) {
+  const int ROW_H = OLED_H / 2; // 16 px
   int baseY = rowIndex * ROW_H;
 
   // Row background
   if (selected) {
-    display.fillRect(0, baseY, OLED_W, ROW_H, SH110X_WHITE);
+    display.fillRect(0, baseY, OLED_W, ROW_H, SSD1306_WHITE);
   }
 
   // Colors
-  uint16_t fg = selected ? SH110X_BLACK : SH110X_WHITE;
+  uint16_t fg = selected ? SSD1306_BLACK : SSD1306_WHITE;
 
   // 1) Title (T1/C1) in font 1
   display.setTextSize(1);
@@ -336,10 +329,11 @@ void drawRow(int rowIndex, const String &label, bool selected, bool active, uint
   display.print(t);
 }
 
-// Trackers — scrollable list, VISIBLE_ROWS строк вокруг выбранного
+// Trackers — 2 lines, scroll the list around the selected item
 void drawTrackers() {
   display.clearDisplay();
 
+  const int VISIBLE_ROWS = 2;
   int visible = (MAX_TRACKERS < VISIBLE_ROWS) ? MAX_TRACKERS : VISIBLE_ROWS;
 
   int start = selTracker - visible / 2;
@@ -359,10 +353,11 @@ void drawTrackers() {
   display.display();
 }
 
-// Countdowns — scrollable list, VISIBLE_ROWS строк
+// Countdowns — similarly, 2 lines
 void drawCountdowns() {
   display.clearDisplay();
 
+  const int VISIBLE_ROWS = 2;
   int visible = (MAX_COUNTDOWNS < VISIBLE_ROWS) ? MAX_COUNTDOWNS : VISIBLE_ROWS;
 
   int start = selCountdown - visible / 2;
@@ -400,7 +395,7 @@ void setup() {
   pinMode(PIN_BUZZER,   OUTPUT);
 
   Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
-  if (!display.begin(0x3C, true)) {   // 0x3C — стандартный адрес; если не работает попробуй 0x3D
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {   // If the address is different, change 0x3C
     for (;;) {
       beep(400, 150);
       delay(400);
@@ -409,7 +404,7 @@ void setup() {
 
   display.clearDisplay();
   display.setTextSize(1);
-  display.setTextColor(SH110X_WHITE);
+  display.setTextColor(SSD1306_WHITE);
 
   loadAll();
 
@@ -423,7 +418,7 @@ void setup() {
   display.println("v2.2");
   display.display();
   beep(1200, 40); delay(60); beep(1600, 50);
-  delay(2000);
+  delay(200);
 }
 
 void loop() {
@@ -489,12 +484,18 @@ void loop() {
       if (countdowns[i].running) {
         countdowns[i].remainSec -= (int32_t)dt;
         if (countdowns[i].remainSec <= 0) {
-          // loop from last user-configured duration and beep each cycle
-          for (uint8_t k = 0; k < 3; k++) {
-            beep(200, 120);
-            delay(150);
+          // loop from last user-configured duration ansd beep each cycle
+          // countdowns[i].remainSec = 0;
+          // countdowns[i].running   = false;
+          // if(countdown[i].userSec < 1)  countdown[i].userSec = 60;
+          if (countdowns[i].remainSec <=0) {
+           // short trill
+           for (uint8_t k = 0; k < 3; k++) {
+             beep(2000, 120);
+             delay(150);
+           }
+           countdowns[i].remainSec += (int32_t)countdowns[i].userSec;
           }
-          countdowns[i].remainSec += (int32_t)countdowns[i].userSec;
         }
       }
     }
