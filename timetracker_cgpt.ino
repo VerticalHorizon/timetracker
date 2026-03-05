@@ -40,7 +40,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
+#include <Adafruit_SSD1306.h>
 #include <Preferences.h>
 
 // ── Pinout (edit to match your board) ─────────────────────────────────────────────────
@@ -56,7 +56,7 @@ constexpr int OLED_W       = 128;
 constexpr int OLED_H       = 64;   // 1.3" OLED 128x64  ← меняй сюда если другой экран
 constexpr int VISIBLE_ROWS = 4;    // сколько строк влезает на экран
 constexpr int ROW_H        = OLED_H / VISIBLE_ROWS; // высота одной строки в пикселях (16)
-Adafruit_SH1106G display(OLED_W, OLED_H, &Wire, -1);
+Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
 
 // ── Config ──────────────────────────────────────────────-────────────────────
 constexpr uint8_t  MAX_TRACKERS   = 5;
@@ -297,11 +297,11 @@ void drawRow(int rowIndex, const String &label, bool selected, bool active, uint
 
   // Row background
   if (selected) {
-    display.fillRect(0, baseY, OLED_W, ROW_H, SH110X_WHITE);
+    display.fillRect(0, baseY, OLED_W, ROW_H, SSD1306_WHITE);
   }
 
   // Colors
-  uint16_t fg = selected ? SH110X_BLACK : SH110X_WHITE;
+  uint16_t fg = selected ? SSD1306_BLACK : SSD1306_WHITE;
 
   // 1) Title (T1/C1) in font 1
   display.setTextSize(1);
@@ -400,7 +400,7 @@ void setup() {
   pinMode(PIN_BUZZER,   OUTPUT);
 
   Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
-  if (!display.begin(0x3C, true)) {   // 0x3C — стандартный адрес; если не работает попробуй 0x3D
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {   // если не работает попробуй 0x3D
     for (;;) {
       beep(400, 150);
       delay(400);
@@ -409,7 +409,7 @@ void setup() {
 
   display.clearDisplay();
   display.setTextSize(1);
-  display.setTextColor(SH110X_WHITE);
+  display.setTextColor(SSD1306_WHITE);
 
   loadAll();
 
