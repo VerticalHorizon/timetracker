@@ -1,35 +1,37 @@
-// ESP32-C3 Task Timer: multi-counter time tracker + 3 countdown timers on SH1106 OLED
-// One active tracker at a time; fast switching between tasks.
-// Three countdown timers: default 5 min, 30 min, 1.5 hours. Cyclic (auto-restart).
+// ESP32-C3 TimeTracker: 5 task time trackers + 3 cyclic countdowns on an SH1106 OLED
+// Only one tracker runs at a time: starting another task stops the current one.
+// Three countdowns (default 5 min, 30 min, 1.5 h) restart automatically at zero.
 //
 // ──────────────────────────────────────────────────────────────────────────────
 // Hardware (adjust pins if needed):
 //  OLED SH1106 128x64 I2C (1.3"): SDA=GPIO6, SCL=GPIO7, address 0x3C
-//  Питание экрана: 3.3V → VDD,  GND → GND
-//  Порядок пинов на плате слева направо: VDD  GND  SCK  SDA
+//  OLED power: 3.3V → VDD, GND → GND
+//  OLED module pin order, left to right: VDD  GND  SCK  SDA
 //  Buttons (to GND, using internal pull-up): OK=GPIO2, NEXT=GPIO3, BACK=GPIO4
-//  Buzzer passive (без встроенного генератора): GPIO5
+//  Passive buzzer (no built-in oscillator), driven via a bipolar transistor: GPIO5
 //
 // Required Libraries (Arduino IDE → Library Manager):
 //  - Adafruit GFX
 //  - Adafruit SH110X
 //  - Preferences (included in ESP32 core)
-// Board: ESP32C3 Dev Module (Arduino core for ESP32 v2.0+)
+// Board: ESP32C3 Dev Module (Arduino core for ESP32 v3.0+, needed for ledcAttach())
 //
-// ── Controls ───────────────────────────────────────────────────────────────
+// ── Controls ──────────────────────────────────────────────────────────────────
+// Long press = hold for ~1 s; it is recognized when the button is released.
+//
 // TRACKERS tab:
 //   OK   (short)       → Start/stop selected tracker
 //   NEXT (short)       → Select next tracker
 //   BACK (short)       → Select previous tracker
-//   OK   (long ~1 s)   → Reset time of selected tracker
+//   OK   (long)        → Reset time of selected tracker
 //
 // COUNTDOWNS tab:
 //   OK   (short)       → Start/stop selected countdown
 //   NEXT (short)       → Select next countdown
 //   BACK (short)       → Select previous countdown
-//   OK   (long)        → Reset to preset (5 min,  30 min, 1.5 hour)
-//   NEXT (long)        → +5 minutes
-//   BACK (long)        → −5 minutes (minimum 1 minute)
+//   OK   (long)        → Reset to factory preset (5 min, 30 min, 1.5 h)
+//   NEXT (long)        → −5 minutes (minimum 1 minute)
+//   BACK (long)        → +5 minutes (maximum 24 hours)
 //
 // Tab switching: hold NEXT + BACK together for ~1 second.
 //
@@ -43,7 +45,7 @@
 #include <Adafruit_SH110X.h>
 #include <Preferences.h>
 
-// ── Pinout (edit to match your board) ─────────────────────────────────────────────────
+// ── Pinout (edit to match your board) ─────────────────────────────────────────
 constexpr uint8_t PIN_OLED_SDA = 6;
 constexpr uint8_t PIN_OLED_SCL = 7;
 constexpr uint8_t PIN_BTN_OK   = 2;
@@ -51,18 +53,18 @@ constexpr uint8_t PIN_BTN_NEXT = 3;
 constexpr uint8_t PIN_BTN_BACK = 4;
 constexpr uint8_t PIN_BUZZER   = 5;  // passive buzzer preferred
 
-// ── Display ─────────────────────────────────────────────────--────────────────
+// ── Display ───────────────────────────────────────────────────────────────────
 constexpr int OLED_W       = 128;
-constexpr int OLED_H       = 64;   // 1.3" OLED 128x64  ← меняй сюда если другой экран
-constexpr int VISIBLE_ROWS = 4;    // сколько строк влезает на экран
-constexpr int ROW_H        = OLED_H / VISIBLE_ROWS; // высота одной строки в пикселях (16)
+constexpr int OLED_H       = 64;   // 1.3" OLED 128x64  ← change here for a different panel
+constexpr int VISIBLE_ROWS = 4;    // rows that fit on the screen
+constexpr int ROW_H        = OLED_H / VISIBLE_ROWS; // row height in pixels (16)
 Adafruit_SH1106G display(OLED_W, OLED_H, &Wire, -1);
 
-// ── Config ──────────────────────────────────────────────-────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 constexpr uint8_t  MAX_TRACKERS   = 5;
 constexpr uint8_t  MAX_COUNTDOWNS = 3;
 constexpr uint32_t AUTOSAVE_MS    = 60000;
-constexpr uint32_t LONG_MS        = 1000;  // long press = ~1 сек
+constexpr uint32_t LONG_MS        = 1000;  // long press = ~1 s
 constexpr uint32_t TAB_SWITCH_MS  = 800;   // holding down two buttons to change tabs
 
 Preferences prefs;
@@ -104,7 +106,7 @@ Btn bOK  {PIN_BTN_OK,   true, 0};
 Btn bNEXT{PIN_BTN_NEXT, true, 0};
 Btn bBACK{PIN_BTN_BACK, true, 0};
 
-// ── utils ─────────────────────────────────────────────────────────────────
+// ── Utils ─────────────────────────────────────────────────────────────────────
 // format HH:MM:SS
 String fmtHMS(uint32_t s) {
   uint32_t h = s / 3600; s %= 3600;
@@ -122,7 +124,7 @@ void beep(uint16_t freq, uint16_t ms) {
   ledcDetach(PIN_BUZZER);
 }
 
-// ── Persistance, NVS ─────────────────────────────────────────────────────────
+// ── Persistence (NVS) ─────────────────────────────────────────────────────────
 void saveAll() {
   prefs.begin("ttracker", false);
 
@@ -176,7 +178,7 @@ void loadAll() {
     }
   }
 
-  // Countdowns: 0 → 5 min, 1 → 1.5 hours by default
+  // Countdowns: factory presets 5 min, 30 min, 1.5 hours
   for (uint8_t i = 0; i < MAX_COUNTDOWNS; i++) {
     char k3[8], k4[8], k5[8];
     snprintf(k3, 8, "cu%u", i);   // userSec
@@ -198,7 +200,7 @@ void loadAll() {
   prefs.end();
 }
 
-// ── Button handling ─────────────────────────────────────────────────────────
+// ── Button handling ───────────────────────────────────────────────────────────
 bool readBtn(Btn &b, bool &pressed, bool &released, bool &longPress) {
   bool level = digitalRead(b.pin); // with INPUT_PULLUP: 1=idle, 0=pressed
   uint32_t now = millis();
@@ -218,11 +220,7 @@ bool readBtn(Btn &b, bool &pressed, bool &released, bool &longPress) {
   return !level; // current is pressed
 }
 
-bool bothHeld() {
-  return !digitalRead(bNEXT.pin) && !digitalRead(bBACK.pin);
-}
-
-// ── Actions ───────────────────────────────────────────────────────────────
+// ── Actions ───────────────────────────────────────────────────────────────────
 void switchToTab(Tab t) {
   currentTab = t;
   beep(1600, 40);
@@ -264,8 +262,8 @@ void toggleCountdown() {
   }
 }
 
-// Reset countdown to factory preset (irnores userSec)
-// Long OK press in countdown tabs
+// Reset countdown to factory preset (ignores userSec)
+// Long OK press on the countdowns tab
 void resetCountdown() {
   auto &cd = countdowns[selCountdown];
   cd.userSec = cd.presetSec; // to current preset
@@ -274,24 +272,23 @@ void resetCountdown() {
   beep(700, 30);
 }
 
-// Adjust user-configured duration by deltaSec (±5 min steps, etc.)
+// Adjust user-configured duration by deltaSec (±5 min steps)
 void adjustCountdown(int deltaSec) {
   auto &cd = countdowns[selCountdown];
-  // int32_t np = (int32_t)cd.presetSec + deltaSec;
   int32_t np = (int32_t)cd.remainSec + deltaSec;
   if (np < 60)        np = 60;        // at least 1 minute
   if (np > 24 * 3600) np = 24 * 3600; // no more than 24 hours
   cd.userSec = (uint32_t)np;
   if (!cd.running) {
-    // cd.remainSec = cd.presetSec;
     cd.remainSec = cd.userSec;
   }
   beep(1000, 20);
 }
 
-// ── Drawing two lines (general logic) ─────────────────────────────────────
-// rowIndex: 0 or 1, label: “T1”/“C1”, active: whether this is active
-// seconds: time in seconds (for display)
+// ── Drawing ───────────────────────────────────────────────────────────────────
+// Draws one list row (shared by both tabs).
+// rowIndex: 0..VISIBLE_ROWS-1, label: "T1"/"C1", selected: inverted row,
+// active: running (dot after the label), seconds: time to display
 void drawRow(int rowIndex, const String &label, bool selected, bool active, uint32_t seconds) {
   int baseY = rowIndex * ROW_H;
 
@@ -330,13 +327,13 @@ void drawRow(int rowIndex, const String &label, bool selected, bool active, uint
   uint16_t w2, h2;
   display.getTextBounds(t, 0, 0, &x2, &y2, &w2, &h2);
 
-  int timeX = OLED_W - w2;  // press to the right
+  int timeX = OLED_W - w2;  // right-aligned
   int timeY = baseY + 1;        // top padding
   display.setCursor(timeX, timeY);
   display.print(t);
 }
 
-// Trackers — scrollable list, VISIBLE_ROWS строк вокруг выбранного
+// Trackers — scrollable list, VISIBLE_ROWS rows around the selected one
 void drawTrackers() {
   display.clearDisplay();
 
@@ -359,7 +356,7 @@ void drawTrackers() {
   display.display();
 }
 
-// Countdowns — scrollable list, VISIBLE_ROWS строк
+// Countdowns — scrollable list, VISIBLE_ROWS rows around the selected one
 void drawCountdowns() {
   display.clearDisplay();
 
@@ -387,8 +384,9 @@ void drawTab() {
   else drawCountdowns();
 }
 
-// ── Setup / Loop ────────────────────────────────────────────────────────────
+// ── Setup / Loop ──────────────────────────────────────────────────────────────
 void setup() {
+  // Factory reset: uncomment, flash once, then comment out again and re-flash.
   /*
   prefs.begin("ttracker", false);
   prefs.clear();
@@ -400,8 +398,8 @@ void setup() {
   pinMode(PIN_BUZZER,   OUTPUT);
 
   Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
-  if (!display.begin(0x3C, true)) {   // 0x3C — стандартный адрес; если не работает попробуй 0x3D
-    for (;;) {
+  if (!display.begin(0x3C, true)) {   // 0x3C is the usual address; try 0x3D if it doesn't work
+    for (;;) {                         // no display: beep forever
       beep(400, 150);
       delay(400);
     }
@@ -429,21 +427,21 @@ void setup() {
 void loop() {
   uint32_t now = millis();
 
-  // Buttons
+  // Buttons (p = pressed edge, r = released, l = released after a long press)
   bool pOK=false,  rOK=false,  lOK=false;
   bool pNX=false,  rNX=false,  lNX=false;
   bool pBK=false,  rBK=false,  lBK=false;
 
-  readBtn(bOK,   pOK, rOK, lOK);
-  readBtn(bNEXT, pNX, rNX, lNX);
-  readBtn(bBACK, pBK, rBK, lBK);
+  readBtn(bOK, pOK, rOK, lOK);
+  bool nxHeld = readBtn(bNEXT, pNX, rNX, lNX);
+  bool bkHeld = readBtn(bBACK, pBK, rBK, lBK);
 
-  // Switching tabs with two buttons with a “latch”
+  // Switching tabs with two buttons with a "latch"
   static uint32_t bothDownAt      = 0;
   static bool     bothWasDown     = false;
   static bool     tabSwitchLatched = false;
 
-  bool both = bothHeld();
+  bool both = nxHeld && bkHeld;
   if (both && !bothWasDown) {
     bothDownAt = now;
     tabSwitchLatched = false;
@@ -461,6 +459,16 @@ void loop() {
 
   bothWasDown = both;
 
+  // Once NEXT and BACK have been held together, ignore their releases until both
+  // are up again. Otherwise letting go after a tab switch would also fire their
+  // short/long-press actions (move the selection, change a countdown by ±5 min).
+  static bool chordHeld = false;
+  if (both) chordHeld = true;
+  if (chordHeld) {
+    rNX = lNX = rBK = lBK = false;
+    if (!nxHeld && !bkHeld) chordHeld = false;
+  }
+
   // Tab logic
   if (currentTab == TAB_TRACKERS) {  // TRACKERS
     if (rNX && !lNX) { selTracker = (selTracker + 1) % MAX_TRACKERS;  beep(1500, 15); }
@@ -472,11 +480,11 @@ void loop() {
     if (rBK && !lBK) { selCountdown = (selCountdown - 1 + MAX_COUNTDOWNS) % MAX_COUNTDOWNS;  beep(1500, 15); }
     if (rOK && !lOK) { toggleCountdown(); }
     if (lOK) { resetCountdown(); }
-    if (lNX) { adjustCountdown(5 * 60); }
-    if (lBK) { adjustCountdown(-5 * 60); }
+    if (lNX) { adjustCountdown(-5 * 60); }  // NEXT (long) → shorter
+    if (lBK) { adjustCountdown(+5 * 60); }  // BACK (long) → longer
   }
 
-  // 1 Hz tick: increase trackers and decrease countdowns
+  // 1 Hz tick: count trackers up and countdowns down
   if (now - lastTickMs >= 1000) {
     uint32_t dt = (now - lastTickMs) / 1000;
     lastTickMs += dt * 1000;
