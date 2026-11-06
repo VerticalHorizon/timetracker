@@ -1,0 +1,11 @@
+# Arduino / arduino-cli build output
+build/
+*.bin
+*.elf
+*.map
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
