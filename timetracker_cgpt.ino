@@ -1,10 +1,10 @@
-// ESP32-C3 TimeTracker: 5 task time trackers + 3 cyclic countdowns on an SH1106 OLED
+// ESP32-C3 TimeTracker: 5 task time trackers + 3 cyclic countdowns on an SSD1306 OLED
 // Only one tracker runs at a time: starting another task stops the current one.
 // Three countdowns (default 5 min, 30 min, 1.5 h) restart automatically at zero.
 //
 // ──────────────────────────────────────────────────────────────────────────────
 // Hardware (adjust pins if needed):
-//  OLED SH1106 128x64 I2C (1.3"): SDA=GPIO6, SCL=GPIO7, address 0x3C
+//  OLED SSD1306 128x64 I2C (1.3"): SDA=GPIO6, SCL=GPIO7, address 0x3C
 //  OLED power: 3.3V → VDD, GND → GND
 //  OLED module pin order, left to right: VDD  GND  SCK  SDA
 //  Buttons (to GND, using internal pull-up): OK=GPIO2, NEXT=GPIO3, BACK=GPIO4
@@ -12,7 +12,7 @@
 //
 // Required Libraries (Arduino IDE → Library Manager):
 //  - Adafruit GFX
-//  - Adafruit SH110X
+//  - Adafruit SSD1306
 //  - Preferences (included in ESP32 core)
 // Board: ESP32C3 Dev Module (Arduino core for ESP32 v3.0+, needed for ledcAttach())
 //
@@ -42,7 +42,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
+#include <Adafruit_SSD1306.h>
 #include <Preferences.h>
 
 // ── Pinout (edit to match your board) ─────────────────────────────────────────
@@ -58,7 +58,9 @@ constexpr int OLED_W       = 128;
 constexpr int OLED_H       = 64;   // 1.3" OLED 128x64  ← change here for a different panel
 constexpr int VISIBLE_ROWS = 4;    // rows that fit on the screen
 constexpr int ROW_H        = OLED_H / VISIBLE_ROWS; // row height in pixels (16)
-Adafruit_SH1106G display(OLED_W, OLED_H, &Wire, -1);
+// 1.3" modules come with an SSD1306 or an SH1106 controller and look the same; this one is an SSD1306.
+// The wrong driver shifts the image or leaves the screen dark: see README → Troubleshooting.
+Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
 
 // ── Config ────────────────────────────────────────────────────────────────────
 constexpr uint8_t  MAX_TRACKERS   = 5;
@@ -294,11 +296,11 @@ void drawRow(int rowIndex, const String &label, bool selected, bool active, uint
 
   // Row background
   if (selected) {
-    display.fillRect(0, baseY, OLED_W, ROW_H, SH110X_WHITE);
+    display.fillRect(0, baseY, OLED_W, ROW_H, SSD1306_WHITE);
   }
 
   // Colors
-  uint16_t fg = selected ? SH110X_BLACK : SH110X_WHITE;
+  uint16_t fg = selected ? SSD1306_BLACK : SSD1306_WHITE;
 
   // 1) Title (T1/C1) in font 1
   display.setTextSize(1);
@@ -398,7 +400,7 @@ void setup() {
   pinMode(PIN_BUZZER,   OUTPUT);
 
   Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
-  if (!display.begin(0x3C, true)) {   // 0x3C is the usual address; try 0x3D if it doesn't work
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {   // 0x3C is the usual address; try 0x3D if it doesn't work
     for (;;) {                         // no display: beep forever
       beep(400, 150);
       delay(400);
@@ -407,7 +409,7 @@ void setup() {
 
   display.clearDisplay();
   display.setTextSize(1);
-  display.setTextColor(SH110X_WHITE);
+  display.setTextColor(SSD1306_WHITE);
 
   loadAll();
 

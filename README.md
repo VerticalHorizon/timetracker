@@ -4,7 +4,7 @@ A small desk gadget for focused work: **five task time trackers** and **three re
 
 ![MCU: ESP32-C3](https://img.shields.io/badge/MCU-ESP32--C3-E7352C?logo=espressif&logoColor=white)
 ![Arduino ESP32 core 3.x](https://img.shields.io/badge/Arduino-ESP32%20core%203.x-00878F?logo=arduino&logoColor=white)
-![Display: SH1106 128x64](https://img.shields.io/badge/OLED-SH1106%20128%C3%9764-444)
+![Display: SSD1306 128x64](https://img.shields.io/badge/OLED-SSD1306%20128%C3%9764-444)
 
 <p align="center">
   <img src="docs/screen-trackers.svg" width="400" alt="Trackers tab: T3 selected, T2 running">
@@ -38,7 +38,7 @@ A long press is recognized when you release the button. Every action is confirme
 | Part | Notes |
 |---|---|
 | ESP32-C3 board | Any ESP32-C3 dev board, e.g. a SuperMini |
-| 1.3″ OLED, 128×64, SH1106, I²C | Address `0x3C` |
+| 1.3″ OLED, 128×64, SSD1306, I²C | Address `0x3C`. Modules with an SH1106 controller look the same but need another driver, see [Troubleshooting](#troubleshooting) |
 | 3 × tactile push button | Wired to GND; the internal pull-ups are used, no resistors needed |
 | Passive buzzer | One *without* a built-in oscillator; the firmware generates the tone with PWM |
 | Small NPN transistor + ~1 kΩ resistor | Drives the buzzer louder than a GPIO pin can on its own |
@@ -74,7 +74,7 @@ If your buzzer is the electromagnetic (coil) kind rather than piezo, put a small
 
 ## Building and flashing
 
-You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` API) and two libraries: **Adafruit SH110X** and **Adafruit GFX Library**.
+You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` API) and two libraries: **Adafruit SSD1306** and **Adafruit GFX Library**.
 
 **Arduino IDE:** install *esp32 by Espressif Systems* in Boards Manager and the two libraries in Library Manager (accept the Adafruit BusIO dependency when asked). Open `timetracker_cgpt.ino`, select **ESP32C3 Dev Module** and upload.
 
@@ -84,7 +84,7 @@ You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` 
 URL=https://espressif.github.io/arduino-esp32/package_esp32_index.json
 arduino-cli core update-index --additional-urls $URL
 arduino-cli core install esp32:esp32 --additional-urls $URL
-arduino-cli lib install "Adafruit SH110X" "Adafruit GFX Library"
+arduino-cli lib install "Adafruit SSD1306" "Adafruit GFX Library"
 
 arduino-cli compile --fqbn esp32:esp32:esp32c3 .
 arduino-cli upload  --fqbn esp32:esp32:esp32c3 -p /dev/ttyACM0 .
@@ -120,7 +120,7 @@ To wipe everything, uncomment the `prefs.clear()` block at the start of `setup()
 ## Troubleshooting
 
 - **Blank screen and a low beep repeating twice a second:** the display didn't answer at I²C address `0x3C`. Check the SDA/SCL wiring, or try `0x3D` in `display.begin()`.
-- **Garbled or shifted image:** your module may have an SSD1306 controller instead of an SH1106 (they look the same). Switch the sketch to the Adafruit SSD1306 library: `Adafruit_SSD1306 display(...)`, `display.begin(SSD1306_SWITCHCAPVCC, 0x3C)` and `SSD1306_WHITE` / `SSD1306_BLACK`.
+- **Garbled image:** your module may have an SH1106 controller instead of an SSD1306 (they look the same). Switch the sketch to the Adafruit SH110X library: `#include <Adafruit_SH110X.h>`, `Adafruit_SH1106G display(...)`, `display.begin(0x3C, true)` and `SH110X_WHITE` / `SH110X_BLACK`. Only do this for a garbled image. An SSD1306 driven as an SH1106 shows the picture shifted two pixels to the right, then stays dark after the next power cycle while the buzzer still works.
 - **`'ledcAttach' was not declared in this scope`:** your ESP32 core is 2.x; update it to 3.x.
 
 ## Project layout
