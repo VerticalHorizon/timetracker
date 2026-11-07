@@ -4,6 +4,14 @@ build/
 *.elf
 *.map
 
+# Android app (android/): Gradle caches, local paths, signing keys
+.gradle/
+.kotlin/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
 # Editors and OS
 .vscode/
 .idea/

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TimeTracker</string>
+
+    <string name="tab_tasks">Tasks</string>
+    <string name="tab_countdowns">Countdowns</string>
+    <string name="tab_categories">Categories</string>
+
+    <!-- Connection pill in the header -->
+    <string name="status_connect">Connect</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_searching">Searching…</string>
+    <string name="status_permission">Allow Bluetooth</string>
+    <string name="status_bluetooth_off">Bluetooth off</string>
+    <string name="status_incompatible">Update tracker</string>
+
+    <string name="notice_no_tracker">Connect your TimeTracker to count time for your tasks.</string>
+    <string name="notice_permission">The app needs your permission to reach the tracker over Bluetooth.</string>
+    <string name="notice_bluetooth_off">Bluetooth is off. Turn it on to reach your tracker.</string>
+    <string name="notice_incompatible">The tracker answers, but its firmware doesn’t match this app. Flash the firmware from the same version of the project.</string>
+    <string name="find_tracker">Find tracker</string>
+    <string name="allow">Allow</string>
+    <string name="open_settings">Open settings</string>
+    <string name="turn_on">Turn on</string>
+
+    <!-- Tasks -->
+    <!-- %1$s and %2$s below are timer names from the tracker's display: T1…T5, C1…C3 -->
+    <string name="now">Now · %1$s</string>
+    <string name="now_unlinked">No task on this timer</string>
+    <string name="no_category">No category</string>
+    <string name="tasks_empty">No tasks yet. Add one with +, then give it a timer from the tracker.</string>
+    <string name="new_task">New task</string>
+    <string name="edit_task">Task</string>
+    <string name="name">Name</string>
+    <string name="category">Category</string>
+    <string name="timer">Timer</string>
+    <string name="none">None</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="timer_offline">Connect to the tracker to change the timer.</string>
+    <string name="timer_current">The task counts the time of %1$s.</string>
+    <string name="timer_none">Pick a timer to count time for this task.</string>
+    <string name="timer_unlink">The task stops counting and keeps its %1$s.</string>
+    <string name="timer_reset">%1$s starts again from zero on the tracker.</string>
+    <string name="timer_keeps">The task keeps its %1$s and adds to it.</string>
+    <string name="timer_moves">“%1$s” leaves %2$s and keeps its time.</string>
+
+    <string name="delete_task_title">Delete task?</string>
+    <string name="delete_task_text">“%1$s” and its %2$s will be gone.</string>
+
+    <!-- Categories -->
+    <string name="new_category">New category</string>
+    <string name="edit_category">Category</string>
+    <string name="color">Color</string>
+    <string name="categories_empty">No categories yet. They group tasks, like Work or Study.</string>
+    <string name="delete_category_title">Delete category?</string>
+    <string name="delete_category_text">Tasks in “%1$s” stay, without a category.</string>
+
+    <!-- Countdowns -->
+    <string name="every">every %1$s</string>
+    <string name="countdowns_offline">Countdowns appear here while the tracker is connected.</string>
+    <string name="countdowns_hint">Tap a countdown to change its length. On the tracker it moves in 5-minute steps; here, by the minute.</string>
+    <string name="rings_every">Rings every</string>
+    <string name="hours">Hours</string>
+    <string name="minutes">Minutes</string>
+    <string name="less">Less</string>
+    <string name="more">More</string>
+    <string name="countdown_running">%1$s is running. The new length starts with its next cycle.</string>
+    <string name="set">Set</string>
+
+    <!-- Tracker sheet -->
+    <string name="tracker">Tracker</string>
+    <string name="sheet_permission">The app talks to your TimeTracker over Bluetooth and needs your permission for that.</string>
+    <string name="sheet_bluetooth_off">Bluetooth is off.</string>
+    <string name="sheet_scanning">Looking for your tracker…</string>
+    <string name="sheet_pick">Tap your tracker to connect.</string>
+    <string name="sheet_nothing_found">No tracker found. Make sure it is on, nearby and not connected to another phone.</string>
+    <string name="search_again">Search again</string>
+    <string name="sheet_about">Time is collected whenever the app is open near the tracker. In between, the tracker keeps counting on its own, so nothing is lost.</string>
+    <string name="forget_tracker">Forget this tracker</string>
+
+    <string name="error_not_connected">The tracker isn’t connected.</string>
+    <string name="error_no_reply">The tracker didn’t answer, so nothing changed. Try again.</string>
+    <string name="error_busy">Still busy with the last change.</string>
+</resources>

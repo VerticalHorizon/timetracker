@@ -1,6 +1,6 @@
 # ESP32-C3 TimeTracker
 
-A small desk gadget for focused work: **five task time trackers** and **three recurring reminder timers** on a 1.3″ OLED, run with three buttons and a buzzer.
+A small desk gadget for focused work: **five task time trackers** and **three recurring reminder timers** on a 1.3″ OLED, run with three buttons and a buzzer. An optional **Android app** connects over Bluetooth and adds up the time per task and category.
 
 ![MCU: ESP32-C3](https://img.shields.io/badge/MCU-ESP32--C3-E7352C?logo=espressif&logoColor=white)
 ![Arduino ESP32 core 3.x](https://img.shields.io/badge/Arduino-ESP32%20core%203.x-00878F?logo=arduino&logoColor=white)
@@ -20,6 +20,24 @@ A small desk gadget for focused work: **five task time trackers** and **three re
 **Countdowns tab: reminders through the day.** Three countdowns, C1–C3, preset to 5 min, 30 min and 1 h 30 min and adjustable in 5-minute steps. When one reaches zero the buzzer beeps three times and the countdown starts over, so it works as a recurring reminder. Stop it by hand and it doubles as an ordinary one-shot timer.
 
 Everything is saved to flash, so trackers and countdowns pick up where they left off after a power cycle.
+
+## The phone app
+
+The Android app in [`android/`](android) gives names to what the trackers measure. Create tasks in the app, sort them into categories, and give each task one of the trackers, T1–T5. The app then adds that tracker's time to the task. The tracker itself knows nothing about tasks: it keeps working on its own exactly as before.
+
+<p align="center">
+  <img src="docs/app-tasks.png" width="240" alt="Tasks grouped by category, with the running task on top">
+  &nbsp;
+  <img src="docs/app-task-sheet.png" width="240" alt="Editing a task: moving it from T1 to T2">
+  &nbsp;
+  <img src="docs/app-countdowns-dark.png" width="240" alt="Countdowns in dark mode">
+</p>
+
+- **Giving a task a tracker** resets that tracker to 00:00:00 on the device. This applies to a task's first tracker and to moving it to another one. In the app the task keeps its time and keeps adding to it. Time a tracker counted before the link never ends up in a task, so switching trackers can't pad a task's time.
+- **Nothing is lost while the phone is away.** Besides the time on the display, each tracker keeps a total that no button resets. Whenever the app connects, it picks up everything counted since the last connection. A long OK press clears only the display; the task keeps its time.
+- **Countdowns** can be set from the app to the minute, from 1 minute to 24 hours. On the device they still move in 5-minute steps.
+
+The app is written in Kotlin with Jetpack Compose and needs Android 8.0 or newer. To build and install it on Arch Linux, see [android/BUILD.md](android/BUILD.md). The Bluetooth protocol is documented in [docs/ble-protocol.md](docs/ble-protocol.md).
 
 ## Controls
 
@@ -74,9 +92,9 @@ If your buzzer is the electromagnetic (coil) kind rather than piezo, put a small
 
 ## Building and flashing
 
-You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` API) and two libraries: **Adafruit SH110X** and **Adafruit GFX Library**.
+You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` API) and three libraries: **Adafruit SH110X**, **Adafruit GFX Library** and **NimBLE-Arduino** 2.x (Bluetooth).
 
-**Arduino IDE:** install *esp32 by Espressif Systems* in Boards Manager and the two libraries in Library Manager (accept the Adafruit BusIO dependency when asked). Open `timetracker_cgpt.ino`, select **ESP32C3 Dev Module** and upload.
+**Arduino IDE:** install *esp32 by Espressif Systems* in Boards Manager and the three libraries in Library Manager (accept the Adafruit BusIO dependency when asked). Open `timetracker_cgpt.ino`, select **ESP32C3 Dev Module** and upload.
 
 **arduino-cli:**
 
@@ -84,7 +102,7 @@ You need the **ESP32 Arduino core 3.x** (the sketch uses the 3.x `ledcAttach()` 
 URL=https://espressif.github.io/arduino-esp32/package_esp32_index.json
 arduino-cli core update-index --additional-urls $URL
 arduino-cli core install esp32:esp32 --additional-urls $URL
-arduino-cli lib install "Adafruit SH110X" "Adafruit GFX Library"
+arduino-cli lib install "Adafruit SH110X" "Adafruit GFX Library" "NimBLE-Arduino"
 
 arduino-cli compile --fqbn esp32:esp32:esp32c3 .
 arduino-cli upload  --fqbn esp32:esp32:esp32c3 -p /dev/ttyACM0 .
@@ -110,12 +128,12 @@ The countdown presets (5, 30 and 90 minutes) are set in `loadAll()`.
 
 ## Saved state
 
-Tracker times, the running tracker, each countdown's duration, remaining time and run state, the current tab and the selections are written to the ESP32's NVS flash every 60 seconds and restored at boot. As a result:
+Tracker times and totals, the running tracker, each countdown's duration, remaining time and run state, the current tab and the selections are written to the ESP32's NVS flash every 60 seconds and restored at boot. As a result:
 
 - Up to a minute of progress can be lost when the power goes off.
 - There is no real-time clock, so time doesn't advance while the device is off. A running tracker carries on from its last saved value.
 
-To wipe everything, uncomment the `prefs.clear()` block at the start of `setup()`, flash once, then comment it out again and flash again.
+To wipe everything, uncomment the `prefs.clear()` block at the start of `setup()`, flash once, then comment it out again and flash again. This also gives the tracker a new random id. The app notices the new id and carries on from the wiped trackers' new totals, adding nothing to any task.
 
 ## Troubleshooting
 
@@ -126,6 +144,8 @@ To wipe everything, uncomment the `prefs.clear()` block at the start of `setup()
 ## Project layout
 
 ```
-timetracker_cgpt.ino   firmware: buttons, timers, drawing, NVS persistence
-docs/                  images used in this README
+timetracker_cgpt.ino   firmware: buttons, timers, drawing, NVS persistence, Bluetooth
+android/               the Android app (Kotlin, Jetpack Compose); BUILD.md explains the build
+docs/ble-protocol.md   how the firmware and the app talk over Bluetooth
+docs/*.svg, docs/*.png images used in this README
 ```

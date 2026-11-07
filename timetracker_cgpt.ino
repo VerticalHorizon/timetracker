@@ -13,6 +13,7 @@
 // Required Libraries (Arduino IDE → Library Manager):
 //  - Adafruit GFX
 //  - Adafruit SH110X
+//  - NimBLE-Arduino (2.x)
 //  - Preferences (included in ESP32 core)
 // Board: ESP32C3 Dev Module (Arduino core for ESP32 v3.0+, needed for ledcAttach())
 //
@@ -37,6 +38,14 @@
 //
 // NVS Storage: Saves trackers/countdowns state, current tab, and selections
 // to flash memory (NVS — non-volatile storage; key-value). Restores on reboot.
+//
+// ── Bluetooth LE ──────────────────────────────────────────────────────────────
+// Advertises as "TimeTracker" for the Android companion app (android/). The
+// tracker knows nothing about the app's tasks: it publishes its timers and
+// accepts two commands, "reset tracker N" and "set countdown N to M minutes".
+// Besides the time on the display, every tracker keeps a total that no button
+// ever resets; the app counts task time from it. Byte layout:
+// docs/ble-protocol.md
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <Arduino.h>
@@ -44,6 +53,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 #include <Preferences.h>
+#include <NimBLEDevice.h>
 
 // ── Pinout (edit to match your board) ─────────────────────────────────────────
 constexpr uint8_t PIN_OLED_SDA = 6;
@@ -72,7 +82,8 @@ Preferences prefs;
 // ── Data structures ───────────────────────────────────────────────────────────
 struct Tracker {
   char     name[12];
-  uint32_t seconds = 0;   // accumulated seconds
+  uint32_t seconds = 0;   // accumulated seconds (shown, reset by long OK)
+  uint32_t total   = 0;   // all seconds ever counted; never reset (used by the app)
 };
 
 struct Countdown {
@@ -95,6 +106,10 @@ int8_t selCountdown = 0;
 // Timing
 uint32_t lastTickMs   = 0; // for 1 Hz tick
 uint32_t lastAutosave = 0;
+
+// Identity reported to the app (see docs/ble-protocol.md)
+uint32_t deviceId = 0;  // random, created on first boot; changes only when NVS is wiped
+uint32_t bootId   = 0;  // random, new on every boot
 
 // Buttons
 struct Btn {
@@ -134,11 +149,13 @@ void saveAll() {
   prefs.putChar ("selC", selCountdown);
 
   for (uint8_t i = 0; i < MAX_TRACKERS; i++) {
-    char k1[8], k2[8];
+    char k1[8], k2[8], k6[8];
     snprintf(k1, 8, "tn%u", i);
     snprintf(k2, 8, "ts%u", i);
+    snprintf(k6, 8, "tt%u", i);   // total
     prefs.putString(k1, trackers[i].name);
     prefs.putUInt(k2, trackers[i].seconds);
+    prefs.putUInt(k6, trackers[i].total);
   }
 
   for (uint8_t i = 0; i < MAX_COUNTDOWNS; i++) {
@@ -161,12 +178,14 @@ void loadAll() {
   selTracker   = prefs.getChar("selT", 0);
   activeIdx    = prefs.getChar("actT", -1);
   selCountdown = prefs.getChar("selC", 0);
+  deviceId     = prefs.getUInt("dev", 0);
 
   // Trackers
   for (uint8_t i = 0; i < MAX_TRACKERS; i++) {
-    char k1[8], k2[8];
+    char k1[8], k2[8], k6[8];
     snprintf(k1, 8, "tn%u", i);
     snprintf(k2, 8, "ts%u", i);
+    snprintf(k6, 8, "tt%u", i);
     String n = prefs.getString(k1, "");
     if (n.length() == 0) {
       snprintf(trackers[i].name, sizeof(trackers[i].name), "T%u", i + 1);
@@ -176,6 +195,8 @@ void loadAll() {
       trackers[i].name[sizeof(trackers[i].name) - 1] = '\0';
       trackers[i].seconds = prefs.getUInt(k2, 0);
     }
+    // Firmware without totals saved none: start them from the shown time
+    trackers[i].total = prefs.getUInt(k6, trackers[i].seconds);
   }
 
   // Countdowns: factory presets 5 min, 30 min, 1.5 hours
@@ -242,9 +263,11 @@ void toggleTracker() {
   else                         startTracker(selTracker);
 }
 
-void resetTracker() {
-  trackers[selTracker].seconds = 0;
-  if (activeIdx == selTracker) {
+// Clears the shown time only; the total keeps counting (the app relies on it)
+void resetTracker(int8_t i) {
+  if (i < 0 || i >= MAX_TRACKERS) return;
+  trackers[i].seconds = 0;
+  if (activeIdx == i) {
     lastTickMs = millis();
   }
   beep(600, 30);
@@ -283,6 +306,191 @@ void adjustCountdown(int deltaSec) {
     cd.remainSec = cd.userSec;
   }
   beep(1000, 20);
+}
+
+// Set a countdown's duration exactly (from the app, whole minutes).
+// Like adjustCountdown(), a running countdown finishes its current cycle first.
+void setCountdownDuration(uint8_t i, uint32_t sec) {
+  auto &cd = countdowns[i];
+  cd.userSec = sec;
+  if (!cd.running) {
+    cd.remainSec = cd.userSec;
+  }
+  beep(1000, 20);
+}
+
+// ── Bluetooth LE ──────────────────────────────────────────────────────────────
+// NimBLE runs in its own FreeRTOS task. To keep the timers single-threaded, its
+// callbacks only queue commands and copy the last published snapshot; all
+// timer state is touched in loop() alone.
+#define BLE_NAME       "TimeTracker"
+#define BLE_SVC_UUID   "603a0001-2e1a-4102-9367-4c8626517b1d"
+#define BLE_STATE_UUID "603a0002-2e1a-4102-9367-4c8626517b1d"  // read, notify
+#define BLE_CMD_UUID   "603a0003-2e1a-4102-9367-4c8626517b1d"  // write
+
+constexpr uint8_t  BLE_PROTOCOL      = 1;
+constexpr uint8_t  CMD_RESET_TRACKER = 0x01;  // [op, seq, tracker]
+constexpr uint8_t  CMD_SET_COUNTDOWN = 0x02;  // [op, seq, countdown, seconds u32 LE]
+constexpr uint8_t  ACK_OK = 0, ACK_UNKNOWN = 1, ACK_BAD_ARG = 2;
+constexpr uint16_t BLE_CMD_MAX = 8;
+constexpr uint16_t STATE_LEN   = 14 + MAX_TRACKERS * 8 + MAX_COUNTDOWNS * 9;
+
+struct BleCmd {
+  uint8_t len;
+  uint8_t data[BLE_CMD_MAX];
+};
+
+QueueHandle_t         bleQueue    = nullptr;
+NimBLECharacteristic *bleStateChr = nullptr;
+volatile bool         bleSubscribed = false;
+volatile bool         blePushNow    = false;  // send the snapshot even if unchanged
+portMUX_TYPE          bleMux = portMUX_INITIALIZER_UNLOCKED;
+uint8_t               bleState[STATE_LEN];    // last published snapshot, guarded by bleMux
+uint8_t               bleAckSeq    = 0;       // seq of the last processed command
+uint8_t               bleAckStatus = ACK_OK;
+
+void put32(uint8_t *p, uint32_t v) {
+  p[0] = v; p[1] = v >> 8; p[2] = v >> 16; p[3] = v >> 24;
+}
+
+uint32_t get32(const uint8_t *p) {
+  return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+void buildState(uint8_t *b) {
+  b[0] = BLE_PROTOCOL;
+  b[1] = bleAckSeq;
+  b[2] = bleAckStatus;
+  b[3] = (uint8_t)activeIdx;  // -1 → 0xFF
+  put32(b + 4, deviceId);
+  put32(b + 8, bootId);
+  b[12] = MAX_TRACKERS;
+  b[13] = MAX_COUNTDOWNS;
+  uint8_t *p = b + 14;
+  for (uint8_t i = 0; i < MAX_TRACKERS; i++, p += 8) {
+    put32(p,     trackers[i].seconds);
+    put32(p + 4, trackers[i].total);
+  }
+  for (uint8_t i = 0; i < MAX_COUNTDOWNS; i++, p += 9) {
+    put32(p,     countdowns[i].userSec);
+    put32(p + 4, (uint32_t)countdowns[i].remainSec);
+    p[8] = countdowns[i].running ? 1 : 0;
+  }
+}
+
+class BleServerCallbacks : public NimBLEServerCallbacks {
+  void onDisconnect(NimBLEServer *, NimBLEConnInfo &, int) override {
+    bleSubscribed = false;
+  }
+};
+
+class BleStateCallbacks : public NimBLECharacteristicCallbacks {
+  void onRead(NimBLECharacteristic *chr, NimBLEConnInfo &) override {
+    uint8_t copy[STATE_LEN];
+    portENTER_CRITICAL(&bleMux);
+    memcpy(copy, bleState, STATE_LEN);
+    portEXIT_CRITICAL(&bleMux);
+    chr->setValue(copy, STATE_LEN);
+  }
+  void onSubscribe(NimBLECharacteristic *, NimBLEConnInfo &, uint16_t subValue) override {
+    bleSubscribed = (subValue & 1) != 0;
+    blePushNow = true;
+  }
+};
+
+class BleCmdCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic *chr, NimBLEConnInfo &) override {
+    NimBLEAttValue v = chr->getValue();
+    BleCmd cmd{};
+    cmd.len = v.size() < BLE_CMD_MAX ? v.size() : BLE_CMD_MAX;
+    memcpy(cmd.data, v.data(), cmd.len);
+    xQueueSend(bleQueue, &cmd, 0);
+  }
+};
+
+BleServerCallbacks bleServerCallbacks;
+BleStateCallbacks  bleStateCallbacks;
+BleCmdCallbacks    bleCmdCallbacks;
+
+void bleBegin() {
+  bleQueue = xQueueCreate(8, sizeof(BleCmd));
+  NimBLEDevice::init(BLE_NAME);
+
+  // With the radio on, esp_random() is a true random number
+  while (bootId == 0) bootId = esp_random();
+  if (deviceId == 0) {
+    while (deviceId == 0) deviceId = esp_random();
+    prefs.begin("ttracker", false);
+    prefs.putUInt("dev", deviceId);
+    prefs.end();
+  }
+  buildState(bleState);
+
+  NimBLEServer *server = NimBLEDevice::createServer();
+  server->setCallbacks(&bleServerCallbacks);
+  server->advertiseOnDisconnect(true);
+
+  NimBLEService *svc = server->createService(BLE_SVC_UUID);
+  bleStateChr = svc->createCharacteristic(BLE_STATE_UUID,
+                                          NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY, STATE_LEN);
+  bleStateChr->setCallbacks(&bleStateCallbacks);
+  NimBLECharacteristic *cmdChr = svc->createCharacteristic(BLE_CMD_UUID, NIMBLE_PROPERTY::WRITE, BLE_CMD_MAX);
+  cmdChr->setCallbacks(&bleCmdCallbacks);
+
+  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+  adv->enableScanResponse(true);   // before setName(): the name goes to the scan response
+  adv->setName(BLE_NAME);
+  adv->addServiceUUID(BLE_SVC_UUID);
+  adv->start();
+}
+
+// Apply the commands the app has written since the last loop
+void bleHandleCommands() {
+  BleCmd cmd;
+  while (xQueueReceive(bleQueue, &cmd, 0) == pdTRUE) {
+    if (cmd.len < 2) continue;  // no seq to acknowledge
+    uint8_t op = cmd.data[0];
+    uint8_t status;
+
+    if (op == CMD_RESET_TRACKER) {
+      if (cmd.len == 3 && cmd.data[2] < MAX_TRACKERS) {
+        resetTracker(cmd.data[2]);
+        status = ACK_OK;
+      } else {
+        status = ACK_BAD_ARG;
+      }
+    } else if (op == CMD_SET_COUNTDOWN) {
+      uint32_t sec = (cmd.len == 7) ? get32(cmd.data + 3) : 0;
+      if (cmd.len == 7 && cmd.data[2] < MAX_COUNTDOWNS && sec >= 60 && sec <= 24 * 3600) {
+        setCountdownDuration(cmd.data[2], sec - sec % 60);  // whole minutes
+        status = ACK_OK;
+      } else {
+        status = ACK_BAD_ARG;
+      }
+    } else {
+      status = ACK_UNKNOWN;
+    }
+
+    bleAckSeq    = cmd.data[1];
+    bleAckStatus = status;
+    blePushNow   = true;  // acknowledge even if nothing changed
+  }
+}
+
+// Publish the snapshot when it changes (about once a second while anything runs)
+void blePublish() {
+  uint8_t buf[STATE_LEN];
+  buildState(buf);
+
+  portENTER_CRITICAL(&bleMux);
+  bool changed = memcmp(buf, bleState, STATE_LEN) != 0;
+  if (changed) memcpy(bleState, buf, STATE_LEN);
+  portEXIT_CRITICAL(&bleMux);
+
+  if ((changed || blePushNow) && bleSubscribed) {
+    blePushNow = false;
+    bleStateChr->notify(buf, STATE_LEN);
+  }
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────────
@@ -410,6 +618,7 @@ void setup() {
   display.setTextColor(SH110X_WHITE);
 
   loadAll();
+  bleBegin();
 
   lastTickMs   = millis();
   lastAutosave = millis();
@@ -418,7 +627,7 @@ void setup() {
   display.setCursor(8, 8);
   display.println("ESP32-C3 TimeTracker");
   display.setCursor(50, 18);
-  display.println("v2.2");
+  display.println("v3.0");
   display.display();
   beep(1200, 40); delay(60); beep(1600, 50);
   delay(2000);
@@ -474,7 +683,7 @@ void loop() {
     if (rNX && !lNX) { selTracker = (selTracker + 1) % MAX_TRACKERS;  beep(1500, 15); }
     if (rBK && !lBK) { selTracker = (selTracker - 1 + MAX_TRACKERS) % MAX_TRACKERS;  beep(1500, 15); }
     if (rOK && !lOK) { toggleTracker(); }
-    if (lOK) { resetTracker(); }
+    if (lOK) { resetTracker(selTracker); }
   } else { // COUNTDOWNS
     if (rNX && !lNX) { selCountdown = (selCountdown + 1) % MAX_COUNTDOWNS;  beep(1500, 15); }
     if (rBK && !lBK) { selCountdown = (selCountdown - 1 + MAX_COUNTDOWNS) % MAX_COUNTDOWNS;  beep(1500, 15); }
@@ -484,6 +693,9 @@ void loop() {
     if (lBK) { adjustCountdown(+5 * 60); }  // BACK (long) → longer
   }
 
+  // Commands from the app
+  bleHandleCommands();
+
   // 1 Hz tick: count trackers up and countdowns down
   if (now - lastTickMs >= 1000) {
     uint32_t dt = (now - lastTickMs) / 1000;
@@ -491,6 +703,7 @@ void loop() {
 
     if (activeIdx >= 0) {
       trackers[activeIdx].seconds += dt;
+      trackers[activeIdx].total   += dt;
     }
 
     for (uint8_t i = 0; i < MAX_COUNTDOWNS; i++) {
@@ -513,6 +726,9 @@ void loop() {
     lastAutosave = now;
     saveAll();
   }
+
+  // Tell the app
+  blePublish();
 
   // Drawing
   drawTab();
