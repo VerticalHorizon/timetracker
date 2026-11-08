@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 756" width="980" height="756" role="img" aria-label="Wiring diagram: USB-C charges two parallel Li-Po cells through a TP4056; a switch feeds a 5 V boost converter that powers the ESP32-C3 and the buzzer; the OLED runs from the ESP32-C3's 3.3 V pin">
+<title>TimeTracker power and wiring</title>
+<style>
+text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+.bg{fill:#F4F1EA}
+.panel{fill:#FDFBF6;stroke:#CFC9BB;stroke-width:1.5}
+.group{fill:#ECE7DC;stroke:#CFC9BB;stroke-width:1.5;stroke-dasharray:5 5}
+.part{fill:#FDFBF6;stroke:#3A3F38;stroke-width:2}
+.ink{fill:#3A3F38}
+.soft{fill:#6B6E63}
+.wire{fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.pin{fill:#FDFBF6;stroke-width:2}
+.bat{stroke:#BF6548}.v5{stroke:#C98722}.v3{stroke:#558F69}.sig{stroke:#5A81AD}.gnd{stroke:#666B74}.sym{stroke:#3A3F38}
+.dbat{fill:#BF6548}.dv5{fill:#C98722}.dv3{fill:#558F69}.dsig{fill:#5A81AD}.dgnd{fill:#666B74}.dsym{fill:#3A3F38}
+.tbat{fill:#BF6548}.tv5{fill:#A9701A}.tv3{fill:#477C5A}
+@media (prefers-color-scheme:dark){
+.bg{fill:#20231F}
+.panel{fill:#2B2F2A;stroke:#484D46}
+.group{fill:#272B26;stroke:#484D46}
+.part{fill:#2B2F2A;stroke:#E6E3DA}
+.ink{fill:#E6E3DA}
+.soft{fill:#A9ACA1}
+.pin{fill:#2B2F2A}
+.bat{stroke:#E28C70}.v5{stroke:#E6B25E}.v3{stroke:#85BA96}.sig{stroke:#8AACD2}.gnd{stroke:#A0A6AE}.sym{stroke:#E6E3DA}
+.dbat{fill:#E28C70}.dv5{fill:#E6B25E}.dv3{fill:#85BA96}.dsig{fill:#8AACD2}.dgnd{fill:#A0A6AE}.dsym{fill:#E6E3DA}
+.tbat{fill:#E28C70}.tv5{fill:#E6B25E}.tv3{fill:#85BA96}
+}
+</style>
+<rect width="980" height="756" rx="18" class="bg"/>
+<text x="36" y="48" class="ink" font-size="21" font-weight="600">Power and wiring</text>
+<path d="M120 118L176 118" class="wire v5"/>
+<path d="M120 168L176 168" class="wire gnd"/>
+<path d="M348 118L398 118" class="wire bat"/>
+<path d="M446 118L496 118" class="wire bat"/>
+<path d="M348 168L496 168" class="wire gnd"/>
+<path d="M656 118L938 118Q948 118 948 128L948 618Q948 628 938 628L923 628" class="wire v5"/>
+<path d="M704 118L704 226Q704 236 694 236L542 236Q532 236 532 246L532 270" class="wire v5"/>
+<circle cx="704" cy="118" r="4" class="dv5"/>
+<path d="M656 168L673 168Q680 168 680 175L680 182" class="wire gnd"/>
+<line x1="669" y1="182" x2="691" y2="182" class="wire gnd"/>
+<line x1="673" y1="187" x2="687" y2="187" class="wire gnd"/>
+<line x1="677" y1="192" x2="683" y2="192" class="wire gnd"/>
+<rect x="60" y="270" width="292" height="212" rx="14" class="group"/>
+<path d="M216 208L216 330" class="wire bat"/>
+<path d="M216 296L110 296Q100 296 100 306L100 330" class="wire bat"/>
+<circle cx="216" cy="296" r="4" class="dbat"/>
+<path d="M100 342L100 390Q100 400 110 400L306 400Q316 400 316 390L316 208" class="wire gnd"/>
+<path d="M216 342L216 400" class="wire gnd"/>
+<circle cx="216" cy="400" r="4" class="dgnd"/>
+<line x1="80" y1="330" x2="120" y2="330" class="wire bat" stroke-width="3"/>
+<line x1="89" y1="342" x2="111" y2="342" class="wire gnd" stroke-width="5"/>
+<text x="85" y="323" class="soft" font-size="14" text-anchor="middle">+</text>
+<text x="128" y="333" class="ink" font-size="13">102035</text>
+<text x="128" y="349" class="soft" font-size="12">750 mAh</text>
+<line x1="196" y1="330" x2="236" y2="330" class="wire bat" stroke-width="3"/>
+<line x1="205" y1="342" x2="227" y2="342" class="wire gnd" stroke-width="5"/>
+<text x="201" y="323" class="soft" font-size="14" text-anchor="middle">+</text>
+<text x="244" y="333" class="ink" font-size="13">102035</text>
+<text x="244" y="349" class="soft" font-size="12">750 mAh</text>
+<text x="206" y="431" class="ink" font-size="15" text-anchor="middle" font-weight="600">Battery pack</text>
+<text x="206" y="450" class="soft" font-size="12" text-anchor="middle">2 × Li-Po 102035 in parallel</text>
+<text x="206" y="467" class="soft" font-size="12" text-anchor="middle">1500 mAh, 3.7 V</text>
+<path d="M624 300L756 300" class="wire v3"/>
+<text x="690" y="292" class="tv3" font-size="12" text-anchor="middle">3.3 V</text>
+<path d="M624 332L756 332" class="wire sig"/>
+<path d="M624 364L756 364" class="wire sig"/>
+<text x="690" y="353" class="soft" font-size="12" text-anchor="middle">I²C</text>
+<path d="M836 396L836 408" class="wire gnd"/>
+<line x1="825" y1="408" x2="847" y2="408" class="wire gnd"/>
+<line x1="829" y1="413" x2="843" y2="413" class="wire gnd"/>
+<line x1="833" y1="418" x2="839" y2="418" class="wire gnd"/>
+<path d="M624 446L782 446" class="wire sig"/>
+<path d="M624 496L782 496" class="wire sig"/>
+<path d="M624 546L782 546" class="wire sig"/>
+<path d="M826 446L870 446Q880 446 880 456L880 566" class="wire gnd"/>
+<line x1="869" y1="566" x2="891" y2="566" class="wire gnd"/>
+<line x1="873" y1="571" x2="887" y2="571" class="wire gnd"/>
+<line x1="877" y1="576" x2="883" y2="576" class="wire gnd"/>
+<path d="M826 496L880 496" class="wire gnd"/>
+<circle cx="880" cy="496" r="4" class="dgnd"/>
+<path d="M826 546L880 546" class="wire gnd"/>
+<circle cx="880" cy="546" r="4" class="dgnd"/>
+<path d="M624 664L672 664" class="wire sig"/>
+<path d="M724 664L798 664" class="wire sig"/>
+<path d="M820 642L820 635Q820 628 827 628L887 628" class="wire sig"/>
+<path d="M820 686L820 712" class="wire gnd"/>
+<line x1="809" y1="712" x2="831" y2="712" class="wire gnd"/>
+<line x1="813" y1="717" x2="827" y2="717" class="wire gnd"/>
+<line x1="817" y1="722" x2="823" y2="722" class="wire gnd"/>
+<path d="M532 700L532 716" class="wire gnd"/>
+<line x1="521" y1="716" x2="543" y2="716" class="wire gnd"/>
+<line x1="525" y1="721" x2="539" y2="721" class="wire gnd"/>
+<line x1="529" y1="726" x2="535" y2="726" class="wire gnd"/>
+<rect x="36" y="90" width="84" height="106" rx="12" class="panel"/>
+<text x="78.0" y="143.0" class="ink" font-size="15" text-anchor="middle" font-weight="600">USB-C</text>
+<text x="78.0" y="161.0" class="soft" font-size="12" text-anchor="middle">5 V</text>
+<circle cx="120" cy="118" r="3.4" class="pin v5"/>
+<circle cx="120" cy="168" r="3.4" class="pin gnd"/>
+<rect x="176" y="82" width="172" height="126" rx="12" class="panel"/>
+<text x="262.0" y="141" class="ink" font-size="15" text-anchor="middle" font-weight="600">TP4056</text>
+<text x="262.0" y="159" class="soft" font-size="12" text-anchor="middle">charger + protection</text>
+<circle cx="176" cy="118" r="3.4" class="pin v5"/>
+<circle cx="176" cy="168" r="3.4" class="pin gnd"/>
+<circle cx="348" cy="118" r="3.4" class="pin bat"/>
+<circle cx="348" cy="168" r="3.4" class="pin gnd"/>
+<circle cx="216" cy="208" r="3.4" class="pin bat"/>
+<circle cx="316" cy="208" r="3.4" class="pin gnd"/>
+<text x="186" y="122.5" class="soft" font-size="12">IN+</text>
+<text x="186" y="172.5" class="soft" font-size="12">IN−</text>
+<text x="338" y="122.5" class="soft" font-size="12" text-anchor="end">OUT+</text>
+<text x="338" y="172.5" class="soft" font-size="12" text-anchor="end">OUT−</text>
+<text x="216" y="198.5" class="soft" font-size="12" text-anchor="middle">B+</text>
+<text x="316" y="198.5" class="soft" font-size="12" text-anchor="middle">B−</text>
+<rect x="496" y="82" width="160" height="126" rx="12" class="panel"/>
+<text x="576.0" y="141" class="ink" font-size="15" text-anchor="middle" font-weight="600">Boost converter</text>
+<text x="576.0" y="159" class="soft" font-size="12" text-anchor="middle">3.7 V → 5 V</text>
+<circle cx="496" cy="118" r="3.4" class="pin bat"/>
+<circle cx="496" cy="168" r="3.4" class="pin gnd"/>
+<circle cx="656" cy="118" r="3.4" class="pin v5"/>
+<circle cx="656" cy="168" r="3.4" class="pin gnd"/>
+<text x="506" y="122.5" class="soft" font-size="12">IN+</text>
+<text x="506" y="172.5" class="soft" font-size="12">IN−</text>
+<text x="646" y="122.5" class="soft" font-size="12" text-anchor="end">OUT+</text>
+<text x="646" y="172.5" class="soft" font-size="12" text-anchor="end">OUT−</text>
+<rect x="440" y="270" width="184" height="430" rx="12" class="panel"/>
+<text x="510" y="478" class="ink" font-size="15" text-anchor="middle" font-weight="600">ESP32-C3</text>
+<text x="510" y="496" class="soft" font-size="12" text-anchor="middle">any dev board</text>
+<circle cx="532" cy="270" r="3.4" class="pin v5"/>
+<circle cx="532" cy="700" r="3.4" class="pin gnd"/>
+<text x="532" y="292.5" class="soft" font-size="12" text-anchor="middle">5V</text>
+<text x="532" y="688.5" class="soft" font-size="12" text-anchor="middle">GND</text>
+<circle cx="624" cy="300" r="3.4" class="pin v3"/>
+<text x="614" y="304.5" class="soft" font-size="12" text-anchor="end">3V3</text>
+<circle cx="624" cy="332" r="3.4" class="pin sig"/>
+<text x="614" y="336.5" class="soft" font-size="12" text-anchor="end">GPIO7</text>
+<circle cx="624" cy="364" r="3.4" class="pin sig"/>
+<text x="614" y="368.5" class="soft" font-size="12" text-anchor="end">GPIO6</text>
+<circle cx="624" cy="446" r="3.4" class="pin sig"/>
+<text x="614" y="450.5" class="soft" font-size="12" text-anchor="end">GPIO2</text>
+<circle cx="624" cy="496" r="3.4" class="pin sig"/>
+<text x="614" y="500.5" class="soft" font-size="12" text-anchor="end">GPIO3</text>
+<circle cx="624" cy="546" r="3.4" class="pin sig"/>
+<text x="614" y="550.5" class="soft" font-size="12" text-anchor="end">GPIO4</text>
+<circle cx="624" cy="664" r="3.4" class="pin sig"/>
+<text x="614" y="668.5" class="soft" font-size="12" text-anchor="end">GPIO5</text>
+<rect x="756" y="272" width="160" height="124" rx="12" class="panel"/>
+<text x="852" y="322" class="ink" font-size="15" text-anchor="middle" font-weight="600">OLED 1.3″</text>
+<text x="852" y="340" class="soft" font-size="12" text-anchor="middle">SSD1306, I²C</text>
+<circle cx="756" cy="300" r="3.4" class="pin v3"/>
+<circle cx="756" cy="332" r="3.4" class="pin sig"/>
+<circle cx="756" cy="364" r="3.4" class="pin sig"/>
+<circle cx="836" cy="396" r="3.4" class="pin gnd"/>
+<text x="766" y="304.5" class="soft" font-size="12">VDD</text>
+<text x="766" y="336.5" class="soft" font-size="12">SCK</text>
+<text x="766" y="368.5" class="soft" font-size="12">SDA</text>
+<text x="836" y="386.5" class="soft" font-size="12" text-anchor="middle">GND</text>
+<circle cx="398" cy="118" r="4" class="pin bat"/><circle cx="446" cy="118" r="4" class="pin bat"/>
+<line x1="400" y1="116" x2="441" y2="98" class="wire sym"/>
+<text x="422" y="84" class="ink" font-size="13" text-anchor="middle" font-weight="600">Power switch</text>
+<text x="372" y="110" class="tbat" font-size="12" text-anchor="middle">3.7 V</text>
+<text x="820" y="110" class="tv5" font-size="12" text-anchor="middle">5 V</text>
+<circle cx="782" cy="446" r="3.6" class="pin sig"/><circle cx="826" cy="446" r="3.6" class="pin gnd"/>
+<line x1="778" y1="435" x2="830" y2="435" class="wire sym"/>
+<line x1="804" y1="435" x2="804" y2="427" class="wire sym"/>
+<line x1="797" y1="427" x2="811" y2="427" class="wire sym"/>
+<text x="768" y="438" class="ink" font-size="13" text-anchor="end" font-weight="600">OK</text>
+<circle cx="782" cy="496" r="3.6" class="pin sig"/><circle cx="826" cy="496" r="3.6" class="pin gnd"/>
+<line x1="778" y1="485" x2="830" y2="485" class="wire sym"/>
+<line x1="804" y1="485" x2="804" y2="477" class="wire sym"/>
+<line x1="797" y1="477" x2="811" y2="477" class="wire sym"/>
+<text x="768" y="488" class="ink" font-size="13" text-anchor="end" font-weight="600">▼ DOWN</text>
+<circle cx="782" cy="546" r="3.6" class="pin sig"/><circle cx="826" cy="546" r="3.6" class="pin gnd"/>
+<line x1="778" y1="535" x2="830" y2="535" class="wire sym"/>
+<line x1="804" y1="535" x2="804" y2="527" class="wire sym"/>
+<line x1="797" y1="527" x2="811" y2="527" class="wire sym"/>
+<text x="768" y="538" class="ink" font-size="13" text-anchor="end" font-weight="600">▲ UP</text>
+<rect x="672" y="655" width="52" height="18" rx="4" class="part"/>
+<text x="698" y="647" class="ink" font-size="13" text-anchor="middle" font-weight="600">1 kΩ</text>
+<circle cx="808" cy="664" r="25" class="part"/>
+<line x1="798" y1="650" x2="798" y2="678" class="wire sym" stroke-width="3.5"/>
+<line x1="798" y1="656" x2="820" y2="642" class="wire sig"/>
+<line x1="798" y1="672" x2="820" y2="686" class="wire gnd"/>
+<path d="M820 686l-9.5-1.2 4.8-7.3z" class="dgnd"/>
+<text x="841" y="660" class="ink" font-size="13" font-weight="600">NPN</text>
+<text x="841" y="676" class="soft" font-size="12">S8050, 2N2222,</text>
+<text x="841" y="691" class="soft" font-size="12">BC547…</text>
+<circle cx="905" cy="628" r="18" class="part"/><circle cx="905" cy="628" r="6.5" class="dsym"/>
+<text x="929" y="621" class="soft" font-size="14">+</text>
+<text x="934" y="600" class="ink" font-size="13" text-anchor="end" font-weight="600">Passive buzzer</text>
+<path d="M60 524L92 524" class="wire bat"/>
+<text x="104" y="528.5" class="soft" font-size="13">Battery +, cut by the switch</text>
+<path d="M60 549L92 549" class="wire v5"/>
+<text x="104" y="553.5" class="soft" font-size="13">5 V</text>
+<path d="M60 574L92 574" class="wire v3"/>
+<text x="104" y="578.5" class="soft" font-size="13">3.3 V from the ESP32-C3</text>
+<path d="M60 599L92 599" class="wire sig"/>
+<text x="104" y="603.5" class="soft" font-size="13">Signal</text>
+<line x1="65" y1="618" x2="87" y2="618" class="wire gnd"/>
+<line x1="69" y1="623" x2="83" y2="623" class="wire gnd"/>
+<line x1="73" y1="628" x2="79" y2="628" class="wire gnd"/>
+<text x="104" y="628.5" class="soft" font-size="13">Ground: all of these are connected together</text>
+<text x="60" y="680" class="soft" font-size="13">The switch only disconnects the load, so the</text>
+<text x="60" y="698" class="soft" font-size="13">pack still charges while it is switched off.</text>
+</svg>

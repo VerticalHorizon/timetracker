@@ -60,33 +60,28 @@ A long press is recognized when you release the button. Every action is confirme
 | 3 × tactile push button | Wired to GND; the internal pull-ups are used, no resistors needed |
 | Passive buzzer | One *without* a built-in oscillator; the firmware generates the tone with PWM |
 | Small NPN transistor + ~1 kΩ resistor | Drives the buzzer louder than a GPIO pin can on its own |
+| 2 × Li-Po cell, 102035, 750 mAh | Wired in parallel: 1500 mAh at 3.7 V |
+| TP4056 module with USB-C and battery protection | Charges the pack and feeds the rest of the device from `OUT+` / `OUT−` |
+| 5 V boost converter | Powers the ESP32-C3 through its `5V` pin, and the buzzer |
+| Toggle switch | Between the TP4056's `OUT+` and the boost converter's `IN+` |
 
 ### Wiring
 
+<p align="center">
+  <img src="docs/wiring.svg" width="820" alt="Wiring diagram: USB-C charges two parallel Li-Po cells through a TP4056; a switch feeds a 5 V boost converter that powers the ESP32-C3 and the buzzer; the OLED runs from the ESP32-C3's 3.3 V pin; three buttons go to ground; GPIO5 drives the buzzer through an NPN transistor">
+</p>
+
 | ESP32-C3 | Connects to |
 |---|---|
+| 5V | Boost converter `OUT+` (the buzzer's + goes there too) |
 | 3V3 | OLED `VDD` |
-| GND | OLED `GND`, one leg of each button, transistor emitter |
+| GND | Boost converter `OUT−`, OLED `GND`, one leg of each button, transistor emitter |
 | GPIO6 | OLED `SDA` |
 | GPIO7 | OLED `SCK` (I²C clock) |
 | GPIO2 | OK button |
 | GPIO4 | ▲ UP button (`BACK` in the code) |
 | GPIO3 | ▼ DOWN button (`NEXT` in the code) |
 | GPIO5 | Transistor base, through the resistor |
-
-Buzzer driver, a plain low-side switch:
-
-```
-            3V3 (or 5V)
-                │
-            [ buzzer ]
-                │
-                C
-GPIO5 ──[1kΩ]── B    NPN: S8050, 2N2222, BC547, …
-                E
-                │
-               GND
-```
 
 If your buzzer is the electromagnetic (coil) kind rather than piezo, put a small diode such as a 1N4148 across it, with the cathode on the + side. All pins are defined at the top of the sketch if you want to move things around.
 
