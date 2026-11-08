@@ -78,6 +78,8 @@ constexpr uint8_t  MAX_COUNTDOWNS = 3;
 constexpr uint32_t AUTOSAVE_MS    = 60000;
 constexpr uint32_t LONG_MS        = 1000;  // long press = ~1 s
 constexpr uint32_t TAB_SWITCH_MS  = 800;   // holding down two buttons to change tabs
+constexpr uint32_t LOOP_MS        = 26;    // one pass of loop(); reading the buttons this far apart debounces them
+constexpr uint32_t RESEND_MS      = 5000;  // an unchanged frame is still sent to the screen this often
 
 Preferences prefs;
 
@@ -330,6 +332,13 @@ void setCountdownDuration(uint8_t i, uint32_t sec) {
 #define BLE_STATE_UUID "603a0002-2e1a-4102-9367-4c8626517b1d"  // read, notify
 #define BLE_CMD_UUID   "603a0003-2e1a-4102-9367-4c8626517b1d"  // write
 
+// The radio can take it slow: the phone needs one reading a second
+constexpr uint16_t BLE_ADV_MIN      = 800;   // advertise every 500.. (units of 0.625 ms)
+constexpr uint16_t BLE_ADV_MAX      = 1600;  // ..1000 ms
+constexpr uint16_t BLE_CONN_MIN     = 80;    // a connection event every 100.. (units of 1.25 ms)
+constexpr uint16_t BLE_CONN_MAX     = 160;   // ..200 ms
+constexpr uint16_t BLE_CONN_TIMEOUT = 400;   // the link counts as lost after 4 s (units of 10 ms)
+
 constexpr uint8_t  BLE_PROTOCOL      = 1;
 constexpr uint8_t  CMD_RESET_TRACKER = 0x01;  // [op, seq, tracker]
 constexpr uint8_t  CMD_SET_COUNTDOWN = 0x02;  // [op, seq, countdown, seconds u32 LE]
@@ -394,9 +403,13 @@ class BleStateCallbacks : public NimBLECharacteristicCallbacks {
     portEXIT_CRITICAL(&bleMux);
     chr->setValue(copy, STATE_LEN);
   }
-  void onSubscribe(NimBLECharacteristic *, NimBLEConnInfo &, uint16_t subValue) override {
+  void onSubscribe(NimBLECharacteristic *, NimBLEConnInfo &info, uint16_t subValue) override {
     bleSubscribed = (subValue & 1) != 0;
     blePushNow = true;
+    // Subscribing is the end of the app's connection setup: only now slow the link down
+    if (bleSubscribed) {
+      NimBLEDevice::getServer()->updateConnParams(info.getConnHandle(), BLE_CONN_MIN, BLE_CONN_MAX, 0, BLE_CONN_TIMEOUT);
+    }
   }
 };
 
@@ -443,6 +456,8 @@ void bleBegin() {
   adv->enableScanResponse(true);   // before setName(): the name goes to the scan response
   adv->setName(BLE_NAME);
   adv->addServiceUUID(BLE_SVC_UUID);
+  adv->setMinInterval(BLE_ADV_MIN);
+  adv->setMaxInterval(BLE_ADV_MAX);
   adv->start();
 }
 
@@ -543,6 +558,19 @@ void drawRow(int rowIndex, const String &label, bool selected, bool active, uint
   display.print(t);
 }
 
+// Sends the frame to the screen only if it differs from the one already shown: the
+// transfer takes ~26 ms and the picture changes about once a second. The occasional
+// resend repairs a picture damaged by interference.
+void showFrame() {
+  static uint8_t  shown[OLED_W * OLED_H / 8];
+  static uint32_t lastSentMs = 0;
+  uint32_t now = millis();
+  if (memcmp(display.getBuffer(), shown, sizeof(shown)) == 0 && now - lastSentMs < RESEND_MS) return;
+  memcpy(shown, display.getBuffer(), sizeof(shown));
+  lastSentMs = now;
+  display.display();
+}
+
 // Trackers — scrollable list, VISIBLE_ROWS rows around the selected one
 void drawTrackers() {
   display.clearDisplay();
@@ -563,7 +591,7 @@ void drawTrackers() {
     drawRow(row, label, selected, active, secs);
   }
 
-  display.display();
+  showFrame();
 }
 
 // Countdowns — scrollable list, VISIBLE_ROWS rows around the selected one
@@ -586,7 +614,7 @@ void drawCountdowns() {
     drawRow(row, label, selected, active, secs);
   }
 
-  display.display();
+  showFrame();
 }
 
 void drawTab() {
@@ -596,6 +624,8 @@ void drawTab() {
 
 // ── Setup / Loop ──────────────────────────────────────────────────────────────
 void setup() {
+  setCpuFrequencyMhz(80);  // plenty for this sketch; the timers don't depend on it
+
   // Factory reset: uncomment, flash once, then comment out again and re-flash.
   /*
   prefs.begin("ttracker", false);
@@ -734,4 +764,9 @@ void loop() {
 
   // Drawing
   drawTab();
+
+  // Idle for the rest of the pass instead of spinning. The timers can't drift because
+  // of this: the tick above reads the hardware clock and carries the remainder over.
+  uint32_t spent = millis() - now;
+  if (spent < LOOP_MS) delay(LOOP_MS - spent);
 }

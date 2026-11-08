@@ -123,6 +123,7 @@ These constants are at the top of `timetracker_cgpt.ino`:
 | `LONG_MS` | `1000` | Long-press threshold, ms |
 | `TAB_SWITCH_MS` | `800` | How long to hold ▲ + ▼ to switch tabs, ms |
 | `AUTOSAVE_MS` | `60000` | How often state is written to flash, ms |
+| `LOOP_MS` | `26` | One pass of the main loop, ms. Keep it near 20–30: reading the buttons this far apart is what debounces them |
 
 The countdown presets (5, 30 and 90 minutes) are set in `loadAll()`.
 
